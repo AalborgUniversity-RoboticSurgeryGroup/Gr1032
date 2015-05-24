@@ -96,9 +96,15 @@ include_directories(
 )
 
 ## Declare a cpp library
-# add_library(davinci_demo
-#   src/${PROJECT_NAME}/davinci_demo.cpp
-# )
+ add_library(ik_gr1032
+   src/${gr1032}/ik_gr1032
+ )
+ add_library(demo_gr1032
+   src/${gr1032}/demo_gr1032
+ )
+ add_library(safe_3d
+   src/${gr1032}/safe_3d
+ )
 
 ## Declare a cpp executable
 #add_executable(inverse_kinematics src/inverse_kinematics.cpp)
@@ -124,6 +130,9 @@ add_executable(run_controllers src/run_controllers.cpp)
 #)
 
 target_link_libraries(run_controllers
+                      ik_gr1032
+                      demo_gr1032
+                      safe_3d
   ${catkin_LIBRARIES}
 )
 #############
