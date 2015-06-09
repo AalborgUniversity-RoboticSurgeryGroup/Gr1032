@@ -1,4 +1,3 @@
-#define FAST2
 #include "ik_gr1032.h"
 #include "demo_gr1032.h"
 #include "safe_3d.h"
@@ -11,8 +10,6 @@
 #include <ros/ros.h>
 #include <std_msgs/Header.h>
 #include <std_msgs/Float64.h>
-//#include <trajectory_msgs/JointTrajectory.h>
-//#include <trajectory_msgs/JointTrajectoryPoint.h>
 #include <time.h> 
 #include "ros/ros.h"
 #include "std_msgs/String.h"
@@ -47,7 +44,6 @@ int demo();
 int beating_heart();
 int write_sine_data_to_file();
 int ik_angles();
-
 
 /*** global doubles ***/
 double x1;
@@ -113,8 +109,8 @@ int ref_counter = 0;
 /*** callback function to read position sensor ***/
 void joint_states_callback(const sensor_msgs::JointState::ConstPtr& msg)
     { 
-        //ROS_INFO("slide postion: %f", msg->position[6]);
-        //ROS_INFO("name: %s", msg->name[6].c_str());
+        // ROS_INFO("slide postion: %f", msg->position[6]);
+        // ROS_INFO("name: %s", msg->name[6].c_str());  
         x1 = msg->position[6];
         x_inst_slide = x1;
         x_inst_roll = msg->position[5];
@@ -133,68 +129,11 @@ class timer {
 		void start() {
 			begTime = clock();
 		}
-
-		long double elapsedTime() {
-			return ((long double) clock() - begTime) / CLOCKS_PER_SEC;
-		}
-
-		bool isTimeout(unsigned long Ts) {
-			return Ts >= elapsedTime();
-        		}
 };
 
 int main(int argc, char **argv) {
     ros::init(argc, argv, "run_controllers", ros::init_options::AnonymousName);
-    //std::cout << "static observer matrices:\n" << std::endl;
 
-
-#ifdef SLOW
-    /*** define Gamma for slide safety controller ***/
-    Gamma(0,0) = 0.9493;
-    Gamma(1,0) = -4.7300;
-    Gamma(0,1) = 0.0164;
-    Gamma(1,1) = 0.6432;
-    /*** define Phi for slide safety controller ***/
-    Phi(0,0) = 0.0507;
-    Phi(1,0) = 4.73;
-    /*** define the output matrix C for slide safety controller ***/
-    C(0,0) = 1;
-    C(0,1) = 0;
-    /*** define the feedback Kd for slide safety controller ***/
-    Kd(0,0) = 0.3457;
-    Kd(0,1) = -0.0233;
-    /*** define the observer gain Ld for slide safety controller ***/
-    Ld(0,0) = -1.3925;
-    Ld(1,0) = -13.2982;
-    x1_eigen(0,0) = 0;
-    /*** define gains for slide safety controller ***/
-    M(0,0) = 1.8790;
-    M(1,0) = 67.4261;
-    N = 3.1505;
-    P = 0.26500;
-#endif
-#ifdef FAST
-    /*** define Gamma for slide safety controller ***/
-    Gamma(0,0) = 0.9864;    Gamma(0,1) = 0.0091;
-    Gamma(1,0) = -2.6232 ; Gamma(1,1) = 0.8167;
-    /*** define Phi for slide safety controller ***/
-    Phi(0,0) = 0.0136;      
-    Phi(1,0) = 2.6232;
-    /*** define the output matrix C for slide safety controller ***/
-    C(0,0) = 1;         C(0,1) = 0;
-    /*** define the feedback Kd for slide safety controller ***/
-    Kd(0,0) = 0.2546;   Kd(0,1) = -0.033;
-    /*** define the observer gain Ld for slide safety controller ***/
-    Ld(0,0) = -0.6031;
-    Ld(1,0) = -2.5506;
-    x1_eigen(0,0) = 0;
-    /*** define gains for slide safety controller ***/
-    N = 58.06;
-    M(0,0) = 0.787;
-    M(1,0) = 152.31;
-    P = 0.013;
-#endif
-#ifdef FAST2
     /*** define Gamma for slide safety controller ***/
     Gamma(0,0) = 0.9864;    Gamma(0,1) = 0.0091;
     Gamma(1,0) = -2.6232 ; Gamma(1,1) = 0.8167;
@@ -214,20 +153,10 @@ int main(int argc, char **argv) {
     M(0,0) = 0.78;
     M(1,0) = 152.31;
     P = 0.0129;
-#endif
 
     /*** initialize x_hat ***/
     x_hat(0,0) = x1;
     x_hat(1,0) = 0;
-
-    //std::cout << "Gamma = \n" << Gamma << std::endl;
-    //std::cout << "Phi = \n" << Phi << std::endl;
-    //std::cout << "C = \n" << C << std::endl;
-    //std::cout << "Kd = \n" << Kd << std::endl;
-    //std::cout << "Ld = \n" << Ld << std::endl;
-    //std::cout << "x_hat = \n" << x_hat << std::endl;
-    //std::cout << "M = \n" << M << std::endl;
-    //std::cout << "\n" << std::endl;
 
     /*** welcome screen ***/
     std::cout << "Starting program..." << std::endl;
@@ -292,6 +221,14 @@ int main(int argc, char **argv) {
             return 0;
         }
         else if (choice == 'f') {
+            remove("x.txt"); 
+            remove("y.txt"); 
+            remove("z.txt"); 
+            remove("x_ref.txt"); 
+            remove("y_ref.txt"); 
+            remove("z_ref.txt"); 
+            remove("sigma_3d.txt"); 
+            remove("exe_3d.txt"); 
             safe_3d();
             return 0;
         }
@@ -300,7 +237,6 @@ int main(int argc, char **argv) {
             std::cin >> choice;
         }
     }
-
     return 0;
 }
 
@@ -327,16 +263,7 @@ int slide_safety_controller(int model) {
     int N_xrefs = i;
     std::cout << N_xrefs << " reference points provided" << std::endl;
 
-#ifdef SLOW
-    long double Ts = 0.02; 
-#endif
-#ifdef FAST
     long double Ts = 0.01;
-#endif
-#ifdef FAST2
-    long double Ts = 0.01;
-#endif
-
     /*** run slide controller ***/
     while(true) {
 
@@ -633,7 +560,6 @@ int write_sine_data_to_file() {
         f1 << x1_beat_vec[i] << std::endl;
     }
     f1.close();
-
     /*** print reference distance to file ***/
     std::ofstream f2;
     f2.open("dref.txt", std::ios::out | std::ios::app | std::ios::binary);
@@ -641,7 +567,6 @@ int write_sine_data_to_file() {
         f2 << dref_vec[i] << std::endl;
     }
     f2.close();
-
     /*** print sigma values to file ***/
     std::ofstream f3;
     f3.open("sigma.txt", std::ios::out | std::ios::app | std::ios::binary);
@@ -659,7 +584,6 @@ int write_meas_to_files() {
         f1 << x1_vec[i] << std::endl;
     }
     f1.close();
-
     /*** print position references to file ***/
     std::ofstream f2;
     f2.open("slide_ref.txt", std::ios::out | std::ios::app | std::ios::binary);
@@ -667,7 +591,6 @@ int write_meas_to_files() {
         f2 << xref_vec[i] << std::endl;
     }
     f2.close();
-
     /*** print sigma values to file ***/
     std::ofstream f3;
     f3.open("sigma.txt", std::ios::out | std::ios::app | std::ios::binary);
@@ -675,7 +598,6 @@ int write_meas_to_files() {
         f3 << sigma_vec[i] << std::endl;
     }
     f3.close();
-
     /*** print control signals to file ***/
     std::ofstream f4;
     f4.open("control_signal.txt", std::ios::out | std::ios::app | std::ios::binary);
@@ -683,7 +605,6 @@ int write_meas_to_files() {
         f4 << u_vec[i] << std::endl;
     }
     f4.close();
-
     /*** print LgB to file ***/
     std::ofstream f5;
     f5.open("LgB.txt", std::ios::out | std::ios::app | std::ios::binary);
@@ -691,7 +612,6 @@ int write_meas_to_files() {
         f5 << LgB_vec[i] << std::endl;
     }
     f5.close();
-
     /*** print LfB to file ***/
     std::ofstream f6;
     f6.open("LfB.txt", std::ios::out | std::ios::app | std::ios::binary);
@@ -699,7 +619,6 @@ int write_meas_to_files() {
         f6 << LfB_vec[i] << std::endl;
     }
     f6.close();
-
     /*** print error to file ***/
     std::ofstream f7;
     f7.open("err.txt", std::ios::out | std::ios::app | std::ios::binary);
@@ -707,7 +626,6 @@ int write_meas_to_files() {
         f7 << err_vec[i] << std::endl;
     }
     f7.close();
-
     /*** print estimated position to file ***/
     std::ofstream f8;
     f8.open("x1_hat.txt", std::ios::out | std::ios::app | std::ios::binary);
@@ -715,7 +633,6 @@ int write_meas_to_files() {
         f8 << x1_hat_vec[i] << std::endl;
     }
     f8.close();
-
     /*** print estimated velocity to file ***/
     std::ofstream f9;
     f9.open("x2_hat.txt", std::ios::out | std::ios::app | std::ios::binary);
@@ -723,7 +640,6 @@ int write_meas_to_files() {
         f9 << x2_hat_vec[i] << std::endl;
     }
     f7.close();
-
     /*** print duration to file ***/
     std::ofstream f10;
     f10.open("dur.txt", std::ios::out | std::ios::app | std::ios::binary);
@@ -734,49 +650,84 @@ int write_meas_to_files() {
 }
 
 int slide_angles() {
-    std::cout << "test" << std::endl;
- 
-    while(1) {
-         /*** prepare to publish control signal ***/ 
-        ros::NodeHandle node;
-        ros::Publisher setpoints_pub_pitch = node.advertise<std_msgs::Float64>("pitch_command", 1);
-        ros::Publisher setpoints_pub_slide = node.advertise<std_msgs::Float64>("slide_command", 1);
-        ros::Publisher setpoints_pub_roll = node.advertise<std_msgs::Float64>("roll_command", 1);
+    /*** prepare to publish control signal ***/ 
+    ros::NodeHandle node;
+    ros::Publisher setpoints_pub_pitch = node.advertise<std_msgs::Float64>("pitch_command", 1);
+    ros::Publisher setpoints_pub_slide = node.advertise<std_msgs::Float64>("slide_command", 1);
+    ros::Publisher setpoints_pub_roll = node.advertise<std_msgs::Float64>("roll_command", 1);
+    ros::Publisher setpoints_pub_inst_roll = node.advertise<std_msgs::Float64>("inst_roll_command", 1);
+    ros::Publisher setpoints_pub_inst_pitch = node.advertise<std_msgs::Float64>("inst_pitch_command", 1);
+    ros::Publisher setpoints_pub_inst_jaw_right = node.advertise<std_msgs::Float64>("inst_jaw_right_command", 1);
 
-        std::cout << "Give input in the order: [PITCH - ROLL - SLIDE]" << std::endl;
+    while(1) {
+        std::cout << "Type values... (type 9 to exit)" << std::endl;
+
+        std::vector<std::string> names;  
+        names.push_back("p4_hand_pitch");
+        names.push_back("p4_hand_roll");
+        names.push_back("p4_instrument_slide");
+        names.push_back("p4_instrument_roll");
+        names.push_back("p4_instrument_pitch");
+        names.push_back("p4_instrument_jaw_right");
+        names.push_back("p4_instrument_jaw_left");
+
         double input;
-        std::vector<double> control_signals;
-        for (int i = 0; i < 3; i += 1) {
+        std::vector<double> control_signals(7,0.0);
+        for (int i = 0; i < names.size()-1; i += 1) {
+            std::cout << names.at(i) << ":" << std::endl;
             std::cin >> input;
             if (input == 9) {
                 return 0;
             }
-            control_signals.push_back(input);
+            control_signals.at(i) = input;
         }
    
-        /*** execute p4_hand_pith ***/
+        /*** load p4_hand_pith ***/
         std_msgs::Float64 u_msg_0;
-        u_msg_0.data = control_signals[0];
-        setpoints_pub_pitch.publish(u_msg_0);
+        u_msg_0.data = control_signals.at(0);
 
-        /*** execute p4_hand_roll ***/
+        /*** load p4_hand_roll ***/
         std_msgs::Float64 u_msg_1;
-        u_msg_1.data = control_signals[1];
-        setpoints_pub_roll.publish(u_msg_1);
+        u_msg_1.data = control_signals.at(1);
 
-        /*** execute p4_hand_slide ***/
+        /*** load p4_instrument_slide ***/
         std_msgs::Float64 u_msg_2;
-        u_msg_2.data = control_signals[2];
-        setpoints_pub_slide.publish(u_msg_2);
+        u_msg_2.data = control_signals.at(2);
+
+        /*** load p4_instrument_roll ***/
+        std_msgs::Float64 u_msg_3;
+        u_msg_3.data = control_signals.at(3);
         
-        sleep(1);
+        /*** load p4_instrument_pitch ***/
+        std_msgs::Float64 u_msg_4;
+        u_msg_4.data = control_signals.at(4);
+
+        /*** load p4_instrument_jaw_right ***/
+        std_msgs::Float64 u_msg_5;
+        u_msg_5.data = control_signals.at(5);
  
+        std::cout << "hand_pitch = " <<  u_msg_0.data << std::endl;
+        std::cout << "hand_roll = " <<  u_msg_1.data << std::endl;
+        std::cout << "inst_slide = " <<  u_msg_2.data << std::endl;
+        std::cout << "inst_roll = " <<  u_msg_3.data << std::endl;
+        std::cout << "inst_pitch = " <<  u_msg_4.data << std::endl;
+        std::cout << "inst_jaw_right = " <<  u_msg_5.data << std::endl;
+
+        /*** publish setpoints ***/
+        setpoints_pub_pitch.publish(u_msg_0);
+        setpoints_pub_roll.publish(u_msg_1);
+        setpoints_pub_slide.publish(u_msg_2);
+        setpoints_pub_inst_roll.publish(u_msg_3);
+        setpoints_pub_inst_pitch.publish(u_msg_4);
+        setpoints_pub_inst_jaw_right.publish(u_msg_5);
+
+        std::cout << "Done!" << std::endl;        
     }
     return 0;
 }
 
 int demo() {
-    std::cout << "running drunning demo.." << std::endl;
+    std::cout << "running demo.." << std::endl;
     demo_func();
     return 0;
 
