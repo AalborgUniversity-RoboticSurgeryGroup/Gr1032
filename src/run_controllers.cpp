@@ -21,7 +21,7 @@
 /*** define macros ***/
 #define K 0.1
 #define Nbar 1.1
-#define kappa 1
+#define kappa 10
 #define a 1.7778
 #define b 0.0889
 #define c -0.0089
@@ -128,6 +128,9 @@ class timer {
 	public:
 		void start() {
 			begTime = clock();
+		}
+      		long double elapsedTime() {
+			return ((long double) clock() - begTime) / CLOCKS_PER_SEC;
 		}
 };
 
@@ -417,7 +420,7 @@ int beating_heart() {
     std::cout << "beating heart controller is entered" << std::endl;
 
     /*** define local variables ***/
-    double wh = 5.7119866;
+    double wh = 5.7119866/3;
     double Kbar_beat = 0.1;
     double Nbar_beat = 1.1;
 
@@ -456,16 +459,28 @@ int beating_heart() {
                 x_beat(1,0) = 0.01*cos(wh*Ts*iter);
                 x_beat(2,0) = 0.01*sin(wh*Ts*iter);
                
-                if ((iter > 500) && (iter < 700)) {
+                int gg = 0;
+                if ((iter > 10000) && (iter < 10200)) {
                     /*** give unsafe distance ***/
-                    x_beat(3,0) = -0.02;
+                    x_beat(3,0) = -0.005;
+                    gg = 1;
                 }
-                else if (iter > 1000) {
-                    x_beat(3,0) = 0.025;
+                if ((iter > 12000) && (iter < 12200)) {
+                    /*** give unsafe distance ***/
+                    x_beat(3,0) = -0.005;
+                    gg = 1;
                 }
-                else {
+                if ((iter > 30000) && (iter < 30200)) {
+                    /*** give unsafe distance ***/
+                    x_beat(3,0) = -0.005;
+                    gg = 1;
+                }
+                else if (gg == 0) {
                     /*** give safe distance ***/
-                    x_beat(3,0) = 0.04;
+                    x_beat(3,0) = 0.03;
+                    if (iter > 11000) {
+                        x_beat(3,0) = 0.02;
+                    }
                 }
                 
                 /*** control barrier function ***/
@@ -523,10 +538,10 @@ int beating_heart() {
                 setpoints_pub_slide.publish(u_msg);
 
                 /*** give some user information ***/
-                std::cout << "xh1 = " << x_beat(1,0) << std::endl;
-                std::cout << "x1 = " << x1 << std::endl;
-                std::cout << "sigma = " << sigma << std::endl;
-                std::cout << "u = " << u << std::endl;
+                //std::cout << "xh1 = " << x_beat(1,0) << std::endl;
+                //std::cout << "x1 = " << x1 << std::endl;
+                //std::cout << "sigma = " << sigma << std::endl;
+                //std::cout << "u = " << u << std::endl;
                 std::cout << "iter = " << iter << std::endl;               
                 iter += 1;
 
@@ -538,7 +553,7 @@ int beating_heart() {
                 }
 
                 /*** write measurements to file and end section ***/
-                if (iter == 1400) {
+                if (iter == 140000) {
                     write_sine_data_to_file();
                     return 0;
                 }

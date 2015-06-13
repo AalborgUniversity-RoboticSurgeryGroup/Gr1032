@@ -90,6 +90,9 @@ class timer {
 		void start() {
 			begTime = clock();
 		}
+		long double elapsedTime() {
+			return ((long double) clock() - begTime) / CLOCKS_PER_SEC;
+		}
 };
 
 int safe_3d() {
