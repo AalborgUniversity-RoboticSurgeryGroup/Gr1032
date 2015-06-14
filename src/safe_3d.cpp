@@ -33,9 +33,9 @@
 #define rx 0.03
 #define ry 0.06
 #define rz 0.03
-#define taux 0.110
+#define taux 0.11
 #define tauy 0.110
-#define tauz 0.110
+#define tauz 0.11
 #define kappa 0.05
 
 int compute_fk_chain();
@@ -83,6 +83,8 @@ Eigen::MatrixXd k0(3,1);
 Eigen::MatrixXd cbf(1,1);
 Eigen::MatrixXd temp(1,1);
 
+int type = 1;
+
 class timer {
 	private:
 		long double begTime;
@@ -96,6 +98,9 @@ class timer {
 };
 
 int safe_3d() {
+    
+    sigma(0,0) = 0;
+ 
     /*** static matrices ***/
     double gain = 0.02;
     K(0,0) = gain;   K(0,1) = 0.00;   K(0,2) = 0.00;
@@ -123,18 +128,18 @@ int safe_3d() {
     utilde_3d(1,0) = 0.00;
     utilde_3d(2,0) = 0.00;
 
-    std::cout << "K = \n" << K << std::endl;
-    std::cout << "Nbar = \n" << Nbar << std::endl;
-    std::cout << "x = \n" << x << std::endl;
-    std::cout << "xref_3d = \n" << xref_3d << std::endl;
-    std::cout << "utilde_3d = \n" << utilde_3d << std::endl;
-    std::cout << "u_3d = \n" << u_3d << std::endl;
+    //std::cout << "K = \n" << K << std::endl;
+    //std::cout << "Nbar = \n" << Nbar << std::endl;
+    //std::cout << "x = \n" << x << std::endl;
+    //std::cout << "xref_3d = \n" << xref_3d << std::endl;
+    //std::cout << "utilde_3d = \n" << utilde_3d << std::endl;
+    //std::cout << "u_3d = \n" << u_3d << std::endl;
 
     /*** prepare real time processing ***/ 
     timer t;
     t.start();
 
-    std::cout << "Inverse Kinematic Mode!" << std::endl;
+    //std::cout << "Inverse Kinematic Mode!" << std::endl;
 
     ros::NodeHandle node;
     KDL::Tree my_tree;
@@ -156,7 +161,7 @@ int safe_3d() {
 
     for (unsigned int i = 0; i < my_chain.getNrOfSegments(); ++i)
     {
-        std::cout << my_chain.getSegment(i).getName() << "(" << my_chain.getSegment(i).getJoint().getName() << ")" << std::endl;
+        //std::cout << my_chain.getSegment(i).getName() << "(" << my_chain.getSegment(i).getJoint().getName() << ")" << std::endl;
     }
 
     //Create solver based on kinematic chain
@@ -203,6 +208,7 @@ int safe_3d() {
         }
     }
 
+    if (type == 0) {
     /*** print references ***/
     std::cout << "\n";
     std::cout << "x references: " << std::endl;
@@ -226,9 +232,18 @@ int safe_3d() {
         sleep(1);
         i += 1;
     }
+    }
+
+   if (type == 1) {
+       xref_3d(0,0) = 0.05;
+       xref_3d(1,0) = 0.00;
+       xref_3d(2,0) = 0.00;
+   }
 
     /*** start controller ***/
     int iter = 0;
+    int iter_type = 0;
+    int sig_flag = 0;
     while(true) {
         /*** subscribe to topics with 100 Hz ***/
         ros::Rate r(100);
@@ -240,8 +255,55 @@ int safe_3d() {
 
         while(true) {
             if (t.elapsedTime() >= Ts) {
+                iter_type += 1;
+
                 /*** read sensor ***/ 
                 ros::spinOnce();
+
+                if (type == 1) {
+                  if (iter > 200) {
+                    if (iter_type > 20) {
+                        iter_type = 0;
+                        char coor_new;
+                        std::cout << "ready to take input" << std::endl;
+                        std::cin >> coor_new;
+                        if      (coor_new == 'y') {
+                            xref_3d(0,0) = xref_3d(0,0) + 0.005;  
+                        }           
+                        else if (coor_new == 't') {
+                            xref_3d(0,0) = xref_3d(0,0) - 0.005;
+                        }         
+                        else if (coor_new == 'h') {
+                            xref_3d(1,0) = xref_3d(1,0) + 0.005;
+                        }         
+                        else if (coor_new == 'g') {
+                            xref_3d(1,0) = xref_3d(1,0) - 0.005;
+                        }         
+                        else if (coor_new == 'b') {
+                            xref_3d(2,0) = xref_3d(2,0) + 0.005;
+                        }         
+                        else if (coor_new == 'v') {
+                            xref_3d(2,0) = xref_3d(2,0) - 0.005;
+                        }         
+                        else {
+                            std::cout << "error!" << std::endl;
+                        }    
+                    }
+                    if (sigma(0,0) > 0) {
+                        sig_flag = 1;
+                    }
+                    if ( (sigma(0,0) == 0) && (sig_flag == 1) ) {
+                        xref_3d(0,0) = x(0,0);
+                        xref_3d(1,0) = x(1,0);
+                        xref_3d(2,0) = x(2,0);
+                        sig_flag = 0;
+                    }
+                  }
+                }
+                        std::cout << iter <<  " iterations" << std::endl;
+                        std::cout << "sigma = " <<  sigma(0,0) << std::endl;
+                        std::cout << "x = " <<  x << std::endl;
+                        std::cout << "\n";
 
                 /*** convert to 3D ***/ 
                 compute_fk_chain();
@@ -250,7 +312,9 @@ int safe_3d() {
                 std::clock_t start;
                 double dur;
                 start = std::clock();               
-   
+  
+
+            if (type != 1)  {
                 /*** update trajectory ***/ 
                 if (iter_ref > N_iter) {
                     xref_3d(0,0) = x_ref_vec.at(i_ref);
@@ -260,6 +324,7 @@ int safe_3d() {
                     iter_ref = 0;
                 }
                 iter_ref += 1;
+            }
 
                 /*** update state vector ***/
                 x(0,0) = x_cart_meas;                
@@ -325,7 +390,9 @@ int safe_3d() {
                 
                 for (unsigned int i = 0; i < q.rows(); ++i)
                 {
-                    std::cout << "Joint #" << i << ": " << q(i) << std::endl;
+                    if (type == 0) {
+                        std::cout << "Joint #" << i << ": " << q(i) << std::endl;
+                    }
                 }	
 
                 std::vector<double> control_signals;
@@ -333,31 +400,31 @@ int safe_3d() {
                 /*** adjust instrument_roll ***/
                 while (q(3) > pi) {
                     q(3) = -(pi - (q(3) - pi));
-                    std::cout << "instrument_roll adjusted to : " << q(3) << std::endl;
+                    //std::cout << "instrument_roll adjusted to : " << q(3) << std::endl;
                 }
                 while (q(3) < -pi) {  
                     q(3) = (pi + (q(3) + pi));
-                    std::cout << "instrument_roll adjusted to : " << q(3) << std::endl;
+                    //std::cout << "instrument_roll adjusted to : " << q(3) << std::endl;
                 }
 
                 /*** adjust instrument_jaw_right ***/
                 while (q(5) > pi) {
                     q(5) = -(pi - (q(5) - pi));
-                    std::cout << "instrument_jaw_right adjusted to : " << q(5) << std::endl;
+                    //std::cout << "instrument_jaw_right adjusted to : " << q(5) << std::endl;
                 }
                 while (q(5) < -pi) {  
                     q(5) = (pi + (q(5) + pi));
-                    std::cout << "instrument_jaw_right adjusted to : " << q(5) << std::endl;
+                    //std::cout << "instrument_jaw_right adjusted to : " << q(5) << std::endl;
                 }
 
                 /*** adjust instrument_jaw_right ***/
                 if (q(5) > 0.1) {
                     q(5) = 0.1;
-                    std::cout << "instrument_jaw_right > 0.1" << std::endl;
+                    //std::cout << "instrument_jaw_right > 0.1" << std::endl;
                 }
                 if (q(5) < -0.1) {
                     q(5) = -0.1;
-                    std::cout << "instrument_jaw_right < -0.1" << std::endl;
+                    //std::cout << "instrument_jaw_right < -0.1" << std::endl;
                 }
    
                 /*** physical limits for hand_roll ***/
@@ -431,14 +498,14 @@ int safe_3d() {
 
                 /*** check execution time ***/
                 dur = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
-                std::cout << "execution time = " << dur << std::endl; 
-                std::cout  << "sigma = " << sigma(0,0) << std::endl;
-                std::cout  << "u = " << u_3d << std::endl;
+                if (type != 1) {
+                  std::cout << "execution time = " << dur << std::endl; 
+                  std::cout  << "sigma = " << sigma(0,0) << std::endl;
+                  std::cout  << "u = " << u_3d << std::endl;
+                }
 
                 /*** provide some user information ***/
                 iter += 1;
-                std::cout << iter <<  " iterations" << std::endl;
-                std::cout << "\n";
 
                 /*** write slide measurements to file after inital transients ***/
                 if (iter > 20) {
@@ -455,12 +522,13 @@ int safe_3d() {
                     /*** export execution time ***/
                     exe_time_vec.push_back(dur);
                 }
-            
+                if (type == 0 ) {
                 if (iter > N_iter*x_ref_vec.size() + N_iter) {
                     std::cout << "writing meas to file..." << std::endl;
                     write_meas_to_files_3d();
                     ros::shutdown();
                     return 0;
+                }
                 }
 
                 break;
@@ -510,7 +578,7 @@ int compute_fk_chain() {
         bool kinematics_status;
         kinematics_status = fksolver.JntToCart(jointpositions,cartpos);
         if (kinematics_status >= 0) {
-            printf("%s \n","FK calculated succesfully");
+            //printf("%s \n","FK calculated succesfully");
         } 
         else {
             printf("%s \n","Error: could not calculate FK");
